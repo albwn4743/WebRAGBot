@@ -25,7 +25,32 @@ def get_collection(client):
 
 def search_query(query, client, embeddings):
     query_vector = embeddings.embed_query(query)
-    query_lower = query.lower()
 
-    collection = client.collections.get("CompanyDocs")
+    collection = client.collections.get("WebDocument")
+    
+    # Use Hybrid Search combining Keyword (BM25) and Vector Search
+    response = collection.query.hybrid(
+        query=query,
+        vector=query_vector,
+        alpha=0.5, # 0.5 means equal weight to keyword and vector searches
+        limit=8,
+        return_metadata=["score"]
+    )
+    
+    results = []
 
+    for obj in response.objects:
+        # Hybrid search returns a combined score where higher is better
+        hybrid_score = obj.metadata.score if obj.metadata.score else 0.0
+        
+        item = {
+            "text": obj.properties.get("content", ""),
+            "source": obj.properties.get("url", ""),
+            "score": round(hybrid_score, 4),
+        }
+        results.append(item)
+
+    # Sort by hybrid score in descending order
+    results = sorted(results, key=lambda x: x["score"], reverse=True)
+
+    return results

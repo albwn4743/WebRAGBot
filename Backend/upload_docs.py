@@ -77,7 +77,11 @@ def process_and_upload_documents(documents, domain):
         print(f"Total chunks to process: {len(chunk_documents)}")
             
         # Generate embeddings for all chunks at once
-        text_chunks = [c['content'] for c in chunk_documents]
+        # Prepend context so the embedding model knows what the text is about
+        text_chunks = [
+            f"Domain: {c['metadata']['domain']} | Title: {c['metadata']['title']}\n\n{c['content']}" 
+            for c in chunk_documents
+        ]
         print("Generating embeddings...")
         vectors = embeddings.embed_documents(text_chunks)
         
