@@ -1,5 +1,6 @@
 from Dataset import connect_weaviate, get_embeddings, search_query
 import warnings
+from Ai_Services import process_query
 
 warnings.filterwarnings("ignore")
 
@@ -40,5 +41,8 @@ while True:
             print(f"Score  : {score}")
             print(f"Text   :\n{text}")
             print("-" * 60)
-
+            
+        print("\nAI Response:\n")
+        answer = process_query(query, results)
+        print(answer)
 client.close()
