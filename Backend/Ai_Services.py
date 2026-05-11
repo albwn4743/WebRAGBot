@@ -2,21 +2,10 @@ from groq import Groq
 import os
 from dotenv import load_dotenv
 load_dotenv()
-import json
-
-
 client = Groq(api_key=os.getenv("GROK_API_KEY"))
-
-def process_query(query, retrieved_docs):
-
-    # ==========================================
-    # BUILD RETRIEVED CONTEXT
-    # ==========================================
-
+def process_query(query, retrieved_docs, history=None):
     context = ""
-
     for idx, doc in enumerate(retrieved_docs):
-
         context += f"""
 Document {idx + 1}
 
@@ -26,15 +15,13 @@ Relevance Score:
 Source URL:
 {doc.get('source', 'Unknown')}
 
+Title:
+{doc.get('title', 'Unknown')}
+
 Content:
 {doc.get('text', '')}
 
-==================================================
 """
-
-    # ==========================================
-    # SYSTEM PROMPT
-    # ==========================================
 
     system_prompt = f"""
 You are an advanced AI Retrieval-Augmented Generation (RAG) assistant.
@@ -60,41 +47,32 @@ Instructions:
 Retrieved Documents:
 {context}
 """
-
-    # ==========================================
-    # MESSAGES
-    # ==========================================
-
     messages = [
-
         {
             "role": "system",
             "content": system_prompt
-        },
-
-        {
-            "role": "user",
-            "content": query
         }
     ]
 
-    # ==========================================
-    # GROQ API CALL
-    # ==========================================
+    if history:
+        for msg in history:
+            messages.append({
+                "role": msg.get("role", "user"),
+                "content": msg.get("content", "")
+            })
 
+    messages.append({
+        "role": "user",
+        "content": query
+    })
     response = client.chat.completions.create(
-
         model="llama-3.1-8b-instant",
-
         messages=messages,
-
         temperature=0.2,
-
-        max_tokens=1024
+        max_tokens=1024,
+        stream=True
     )
-
-    # ==========================================
-    # RETURN RESPONSE
-    # ==========================================
-
-    return response.choices[0].message.content
+    for chunk in response:
+        content = chunk.choices[0].delta.content
+        if content:
+            yield content
