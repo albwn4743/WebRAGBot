@@ -1,11 +1,50 @@
 from Dataset import connect_weaviate, get_embeddings, search_query
 import warnings
 from Ai_Services import process_query
-
+import asyncio
+from urllib.parse import urlparse
+from scraping import crawl_website
+from upload_docs import process_and_upload_documents
 warnings.filterwarnings("ignore")
-
 print("Initializing Retrieval System...")
 client = connect_weaviate()
+
+# Check if collection exists and has data
+collection_name = "WebDocument"
+has_data = False
+if client.collections.exists(collection_name):
+    collection = client.collections.get(collection_name)
+    if len(collection) > 0:
+        has_data = True
+
+if not has_data:
+    print("\n[!] No documents found in the database.")
+    while True:
+        url = input("Enter Website URL to scrape and upload (or type 'quit' to exit): ")
+        
+        if url.lower().strip() in ['quit', 'exit', 'q']:
+            print("Exiting.")
+            client.close()
+            exit()
+            
+        if not url.strip():
+            print("Please enter a valid URL.")
+            continue
+            
+        print(f"Starting scraping for {url.strip()}...")
+        scraped_results = asyncio.run(crawl_website(url.strip()))
+        print(f"\nScraping complete. Total pages scraped: {len(scraped_results)}")
+        
+        if scraped_results:
+            domain = urlparse(url.strip()).netloc
+            print("Starting upload to Weaviate...")
+            process_and_upload_documents(scraped_results, domain)
+            print("\nUpload complete! You can now start querying.")
+            break # Exit loop and continue to querying
+        else:
+            print("\n[!] No documents were scraped. The website might be blocking access.")
+            print("Please try another URL.\n")
+
 embeddings = get_embeddings()
 
 print("Retrieval System Ready!\n")

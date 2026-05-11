@@ -2,10 +2,10 @@ import asyncio
 from urllib.parse import urlparse
 
 from playwright.async_api import async_playwright
-import trafilatura
+# import trafilatura
 
 
-MAX_PAGES = 20
+MAX_PAGES = 30
 visited_urls = set()
 # MAIN CRAWLER
 async def process_single_page(url, browser, domain):
@@ -22,19 +22,31 @@ async def process_single_page(url, browser, domain):
         # Fast scroll to trigger lazy loading (1000px every 100ms)
         await page.evaluate("""
 async () => {
+
     await new Promise((resolve) => {
+
         let totalHeight = 0;
-        let distance = 1000;
+        let distance = 500;
+
         let timer = setInterval(() => {
+
             let scrollHeight = document.body.scrollHeight;
+
             window.scrollBy(0, distance);
+
             totalHeight += distance;
+
             if(totalHeight >= scrollHeight){
+
                 clearInterval(timer);
                 resolve();
+
             }
-        }, 100);
+
+        }, 500);
+
     });
+
 }
 """)
         
@@ -46,6 +58,25 @@ async () => {
 }
 """)
         if not clean_text:
+            await page.close()
+            return None, []
+            
+        # General check for Access Denied / Bot Protection pages
+        anti_bot_keywords = [
+            "Performing security verification",
+            "protect against malicious bots",
+            "Access Denied",
+            "You don't have permission to access",
+            "verify you are human",
+            "Please enable JS and disable any ad blocker",
+            "Checking your browser before accessing",
+            "Just a moment...",
+            "Reference #"
+        ]
+        
+        if any(keyword.lower() in clean_text.lower() for keyword in anti_bot_keywords):
+            print(f"\n[!] Access Denied: {url}")
+            print("[!] This website is blocking web scraping (Bot Protection / WAF detected).")
             await page.close()
             return None, []
             
@@ -65,7 +96,7 @@ async () => {
             if not link:
                 continue
             parsed = urlparse(link)
-            if parsed.netloc != domain:
+            if not parsed.netloc.endswith(domain):
                 continue
             clean_link = link.split("#")[0]
             skip_extensions = (".jpg", ".jpeg", ".png", ".gif", ".pdf", ".zip", ".mp4", ".mp3", ".svg", ".webp")
