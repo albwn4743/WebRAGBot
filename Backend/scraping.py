@@ -1,21 +1,15 @@
 import asyncio
 from urllib.parse import urlparse
-
 from playwright.async_api import async_playwright
 # import trafilatura
 
-
 MAX_PAGES = 30
-visited_urls = set()
 # MAIN CRAWLER
 async def process_single_page(url, browser, domain):
     page = None
     try:
         page = await browser.new_page()
-        
-        # Block unnecessary resources to drastically speed up loading
         await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font", "stylesheet"] else route.continue_())
-        
         # Use domcontentloaded instead of networkidle
         await page.goto(url, wait_until="domcontentloaded")
         
@@ -50,7 +44,6 @@ async () => {
 }
 """)
         
-        # Clean content
         clean_text = await page.evaluate("""
 () => {
     document.querySelectorAll("script, style, noscript").forEach(el => el.remove());
@@ -119,12 +112,12 @@ async () => {
 async def crawl_website(start_url):
     domain = urlparse(start_url).netloc
     queue = [start_url]
+    visited_urls = set()
     all_documents = []
-    MAX_CONCURRENT = 5 # Number of tabs to open at once
+    MAX_CONCURRENT = 5
 
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
-
         while queue and len(visited_urls) < MAX_PAGES:
             batch_urls = []
             
@@ -161,11 +154,6 @@ async def crawl_website(start_url):
         await browser.close()
 
     return all_documents
-
-
-# ==========================================
-# RUN
-# ==========================================
 
 if __name__ == "__main__":
 

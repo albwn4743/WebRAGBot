@@ -23,15 +23,21 @@ def get_embeddings():
 def get_collection(client):
     return client.collections.get("WebDocument")
 
-def search_query(query, client, embeddings):
+def search_query(query, client, embeddings, domain=None):
     query_vector = embeddings.embed_query(query)
     collection = client.collections.get("WebDocument")
+    
+    filters = None
+    if domain:
+        filters = Filter.by_property("domain").equal(domain)
+        
     # Use Hybrid Search combining Keyword (BM25) and Vector Search
     response = collection.query.hybrid(
         query=query,
         vector=query_vector,
         alpha=0.5, # 0.5 means equal weight to keyword and vector searches
-        limit=8,
+        limit=5,
+        filters=filters,
         return_metadata=["score"]
     )
     results = []
@@ -41,6 +47,7 @@ def search_query(query, client, embeddings):
         item = {
             "text": obj.properties.get("content", ""),
             "source": obj.properties.get("url", ""),
+            "title": obj.properties.get("title", ""),
             "score": round(hybrid_score, 4),
         }
         results.append(item)
