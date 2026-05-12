@@ -15,8 +15,6 @@ from Dataset import connect_weaviate, get_embeddings, search_query
 from Ai_Services import process_query
 
 app = FastAPI()
-
-# Enable CORS for frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -42,17 +40,16 @@ def save_sessions(sessions):
 
 sessions_db = load_sessions()
 
-# Memory Models
+
 class ScrapeRequest(BaseModel):
     url: str
-    depth: Optional[int] = 1
+    # depth: Optional[int] = 1
     sessionId: Optional[str] = None
 
 class ChatRequest(BaseModel):
     message: str
     sessionId: str
 
-# Initialize Weaviate components
 try:
     client = connect_weaviate()
     embeddings = get_embeddings()
@@ -106,7 +103,6 @@ async def get_scrape_status(session_id: str):
     if session_id not in sessions_db:
         raise HTTPException(status_code=404, detail="Session not found")
     session = sessions_db[session_id]
-    
     if session["status"] == "success":
         return {
             "status": "success",
@@ -122,19 +118,16 @@ async def get_scrape_status(session_id: str):
         return {"status": "failed", "error": session.get("error", "Unknown error")}
     else:
         return {"status": "scraping"}
-
 @app.post("/api/chat")
 async def chat_api(req: ChatRequest):
     session_id = req.sessionId
     if session_id not in sessions_db:
         raise HTTPException(status_code=404, detail="Session not found")
-        
     user_msg = req.message
     history = sessions_db[session_id].get("history", [])
     
     if client is None or embeddings is None:
         raise HTTPException(status_code=500, detail="Backend services not fully initialized")
-
     try:
         # Extract domain from session URL
         session = sessions_db[session_id]
