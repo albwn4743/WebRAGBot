@@ -18,22 +18,9 @@ function WelcomeScreen() {
       <div className="welcome-icon">🌐</div>
       <h2 className="welcome-title">Chat with Any Website</h2>
       <p className="welcome-subtitle">
-        Enter a URL above to scrape website content, then ask questions about it.
+        Enter a URL above to scrape website content, then ask questions about it.<br></br>
+        It scrapes Maximum of 30 Web Pages.
       </p>
-      {/* <div className="welcome-steps">
-        <div className="welcome-step">
-          <div className="step-num">1</div>
-          <div className="step-text">Paste a website URL in the scrape panel above</div>
-        </div>
-        <div className="welcome-step">
-          <div className="step-num">2</div>
-          <div className="step-text">Click Scrape to index the website content</div>
-        </div>
-        <div className="welcome-step">
-          <div className="step-num">3</div>
-          <div className="step-text">Ask questions and get AI-powered answers</div>
-        </div>
-      </div> */}
     </div>
   );
 }

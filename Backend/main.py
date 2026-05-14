@@ -2,17 +2,19 @@ import os
 import json
 import uuid
 import asyncio
-from typing import Optional, List, Dict
+from typing import Optional
 from urllib.parse import urlparse
 from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.responses import StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 
+from pydantic import BaseModel
 from scraping import crawl_website
+from scraping_panel import scrape_panel_single_url_sync
 from upload_docs import process_and_upload_documents
 from Dataset import connect_weaviate, get_embeddings, search_query
 from Ai_Services import process_query
+from Ai_Services_panel import process_panel_query
 
 app = FastAPI()
 app.add_middleware(
@@ -24,6 +26,26 @@ app.add_middleware(
 )
 
 SESSIONS_FILE = "sessions.json"
+PANEL_SESSIONS_FILE = "panel_sessions.json"
+
+
+def load_panel_sessions():
+    if os.path.exists(PANEL_SESSIONS_FILE):
+        with open(PANEL_SESSIONS_FILE, "r") as f:
+            try:
+                return json.load(f)
+            except Exception:
+                return {}
+    return {}
+
+
+def save_panel_sessions(sessions):
+    with open(PANEL_SESSIONS_FILE, "w") as f:
+        json.dump(sessions, f)
+
+
+panel_sessions_db = load_panel_sessions()
+
 
 def load_sessions():
     if os.path.exists(SESSIONS_FILE):
@@ -47,6 +69,16 @@ class ScrapeRequest(BaseModel):
     sessionId: Optional[str] = None
 
 class ChatRequest(BaseModel):
+    message: str
+    sessionId: str
+
+
+class PanelScrapeRequest(BaseModel):
+    url: str
+    sessionId: Optional[str] = None
+
+
+class PanelChatRequest(BaseModel):
     message: str
     sessionId: str
 
@@ -78,6 +110,30 @@ def background_scrape(url: str, session_id: str):
         sessions_db[session_id]["status"] = "failed"
         sessions_db[session_id]["error"] = str(e)
         save_sessions(sessions_db)
+
+
+def background_panel_scrape(url: str, session_id: str):
+    try:
+        doc = scrape_panel_single_url_sync(url)
+        if doc:
+            domain = urlparse(url).netloc
+            process_and_upload_documents([doc], domain)
+            text = doc.get("content") or ""
+            panel_sessions_db[session_id]["status"] = "success"
+            panel_sessions_db[session_id]["url"] = url
+            panel_sessions_db[session_id]["title"] = doc.get("title", url)
+            panel_sessions_db[session_id]["pageCount"] = 1
+            panel_sessions_db[session_id]["pageText"] = text[:200000]
+            save_panel_sessions(panel_sessions_db)
+        else:
+            panel_sessions_db[session_id]["status"] = "failed"
+            panel_sessions_db[session_id]["error"] = "No content extracted from this page."
+            save_panel_sessions(panel_sessions_db)
+    except Exception as e:
+        panel_sessions_db[session_id]["status"] = "failed"
+        panel_sessions_db[session_id]["error"] = str(e)
+        save_panel_sessions(panel_sessions_db)
+
 
 @app.post("/api/scrape")
 async def scrape_api(req: ScrapeRequest, background_tasks: BackgroundTasks):
@@ -118,6 +174,91 @@ async def get_scrape_status(session_id: str):
         return {"status": "failed", "error": session.get("error", "Unknown error")}
     else:
         return {"status": "scraping"}
+
+
+@app.post("/api/panel/scrape")
+async def panel_scrape_api(req: PanelScrapeRequest, background_tasks: BackgroundTasks):
+    session_id = req.sessionId or str(uuid.uuid4())
+    panel_sessions_db[session_id] = {
+        "id": session_id,
+        "url": req.url,
+        "title": "Scraping…",
+        "history": [],
+        "status": "scraping",
+        "pageCount": 0,
+        "pageText": "",
+        "error": None,
+    }
+    save_panel_sessions(panel_sessions_db)
+    background_tasks.add_task(background_panel_scrape, req.url, session_id)
+    return {"sessionId": session_id, "status": "scraping"}
+
+
+@app.get("/api/panel/scrape/{session_id}")
+async def get_panel_scrape_status(session_id: str):
+    if session_id not in panel_sessions_db:
+        raise HTTPException(status_code=404, detail="Panel session not found")
+    session = panel_sessions_db[session_id]
+    if session["status"] == "success":
+        return {
+            "status": "success",
+            "sessionId": session_id,
+            "stats": {
+                "url": session.get("url", ""),
+                "title": session.get("title", ""),
+                "pagesScraped": session.get("pageCount", 0),
+            },
+        }
+    if session["status"] == "failed":
+        return {"status": "failed", "error": session.get("error", "Unknown error")}
+    return {"status": "scraping"}
+
+
+@app.post("/api/panel/chat")
+async def panel_chat_api(req: PanelChatRequest):
+    session_id = req.sessionId
+    if session_id not in panel_sessions_db:
+        raise HTTPException(status_code=404, detail="Panel session not found")
+    session = panel_sessions_db[session_id]
+    if session.get("status") != "success":
+        raise HTTPException(status_code=400, detail="Scrape this URL first (panel session not ready).")
+    user_msg = req.message
+    history = panel_sessions_db[session_id].get("history", [])
+    page_text = session.get("pageText", "")
+    page_title = session.get("title", "")
+    page_url = session.get("url", "")
+
+    try:
+        history.append({"role": "user", "content": user_msg, "id": str(uuid.uuid4())})
+
+        def generate_and_save():
+            full_response = ""
+            recent_history = history[-7:-1] if len(history) > 7 else history[:-1]
+            for chunk in process_panel_query(
+                user_msg,
+                page_title,
+                page_url,
+                page_text,
+                history=recent_history,
+            ):
+                full_response += chunk
+                yield chunk
+            history.append(
+                {
+                    "role": "assistant",
+                    "content": full_response,
+                    "id": str(uuid.uuid4()),
+                }
+            )
+            panel_sessions_db[session_id]["history"] = history
+            save_panel_sessions(panel_sessions_db)
+
+        return StreamingResponse(generate_and_save(), media_type="text/plain")
+    except Exception as e:
+        print(f"Error panel chat: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/chat")
 async def chat_api(req: ChatRequest):
     session_id = req.sessionId

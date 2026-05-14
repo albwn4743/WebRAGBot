@@ -12,35 +12,22 @@ async def process_single_page(url, browser, domain):
         await page.route("**/*", lambda route: route.abort() if route.request.resource_type in ["image", "media", "font", "stylesheet"] else route.continue_())
         # Use domcontentloaded instead of networkidle
         await page.goto(url, wait_until="domcontentloaded")
-        
-        # Fast scroll to trigger lazy loading (1000px every 100ms)
+        #Srolling to avoid lazy loading
         await page.evaluate("""
 async () => {
-
     await new Promise((resolve) => {
-
         let totalHeight = 0;
         let distance = 500;
-
         let timer = setInterval(() => {
-
             let scrollHeight = document.body.scrollHeight;
-
             window.scrollBy(0, distance);
-
             totalHeight += distance;
-
             if(totalHeight >= scrollHeight){
-
                 clearInterval(timer);
                 resolve();
-
             }
-
         }, 500);
-
     });
-
 }
 """)
         
@@ -54,7 +41,6 @@ async () => {
             await page.close()
             return None, []
             
-        # General check for Access Denied / Bot Protection pages
         anti_bot_keywords = [
             "Performing security verification",
             "protect against malicious bots",
@@ -79,11 +65,8 @@ async () => {
             "title": title,
             "content": clean_text
         }
-        
-        # Extract links
-        links = await page.eval_on_selector_all("a", "elements => elements.map(el => el.href)")
-        
-        # Filter links
+
+        links = await page.eval_on_selector_all("a", "elements => elements.map(el => el.href)")        
         valid_links = []
         for link in links:
             if not link:

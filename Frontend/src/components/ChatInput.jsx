@@ -2,10 +2,10 @@ import React, { useRef, useEffect } from 'react';
 import { FiSend } from 'react-icons/fi';
 
 const SUGGESTED_QUESTIONS = [
-  'Who is the founder of this company?',
-  'Tell me about the company!',
-  'What are the key features?',
-  'Which is this company?'
+  'What is this page about?',
+  'Can you summarize this page?',
+  'What are the important points mentioned here?',
+  'Explain this content in simple words.'
 ];
 
 function ChatInput({ value, onChange, onSend, isLoading, disabled, showSuggestions }) {
