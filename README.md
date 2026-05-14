@@ -107,7 +107,7 @@ Sessions are saved as json files in Backend (`sessions.json` and `panel_sessions
 
 ## Packages I used (rough list)
 
-Backend: fastapi, uvicorn, weaviate client, groq, langchain stuff, playwright, dotenv
+Backend: fastapi, uvicorn, weaviate client, groq, langchain, playwright, dotenv
 
 Frontend: react, vite, axios, markdown rendering libs
 

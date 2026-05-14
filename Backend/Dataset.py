@@ -1,7 +1,4 @@
 from langchain_community.embeddings import HuggingFaceEmbeddings
-
-# Module-level cache for the embeddings instance to avoid re-loading the model on every request
-_embeddings_cache = None
 import weaviate
 from weaviate.classes.query import Filter
 from weaviate.classes.init import Auth
@@ -18,12 +15,9 @@ def connect_weaviate():
 )
     
 def get_embeddings():
-    global _embeddings_cache
-    if _embeddings_cache is None:
-        _embeddings_cache = HuggingFaceEmbeddings(
-            model_name="sentence-transformers/all-MiniLM-L6-v2"
-        )
-    return _embeddings_cache
+    return HuggingFaceEmbeddings(
+        model_name="sentence-transformers/all-MiniLM-L6-v2"
+    )
 
 # -------- GET COLLECTION --------
 def get_collection(client):
@@ -32,6 +26,7 @@ def get_collection(client):
 def search_query(query, client, embeddings, domain=None):
     query_vector = embeddings.embed_query(query)
     collection = client.collections.get("WebDocument")
+    
     filters = None
     if domain:
         filters = Filter.by_property("domain").equal(domain)

@@ -1,67 +1,31 @@
 import asyncio
-import atexit
-import sys
 from urllib.parse import urlparse
-from scraping import get_browser, process_single_page, shutdown
-
+from playwright.async_api import async_playwright
+from scraping import process_single_page
 
 async def scrape_panel_single_url(url: str):
-    """Fetch a single page and return a document dict.
-    Returns a dict with keys 'url', 'title', 'content' or None on failure.
+    """
+    Fetch one page and return a document dict compatible with upload_docs:
+    {"url", "title", "content"} or None on failure / bot wall.
     """
     domain = urlparse(url).netloc
-    browser = await get_browser()
-    document, _ = await process_single_page(url, browser, domain)
-    return document
+    async with async_playwright() as p:
+        browser = await p.chromium.launch(headless=True)
+        try:
+            document, _links = await process_single_page(url, browser, domain)
+            return document
+        finally:
+            await browser.close()
 
 
 def scrape_panel_single_url_sync(url: str):
-    """Synchronous wrapper — safe to call from a thread but NOT from inside
-    an already-running event loop (e.g. directly in an async FastAPI route).
-    For FastAPI, call scrape_panel_single_url() directly with await instead.
-    """
-    try:
-        loop = asyncio.get_running_loop()
-    except RuntimeError:
-        loop = None
-
-    if loop and loop.is_running():
-        raise RuntimeError(
-            "scrape_panel_single_url_sync() called from a running event loop. "
-            "Use 'await scrape_panel_single_url(url)' instead."
-        )
-
-    if sys.platform == "win32":
-        loop = asyncio.ProactorEventLoop()
-        asyncio.set_event_loop(loop)
-        try:
-            return loop.run_until_complete(scrape_panel_single_url(url))
-        finally:
-            loop.run_until_complete(asyncio.sleep(0.25))
-            loop.close()
-    else:
-        return asyncio.run(scrape_panel_single_url(url))
-
-
-def _atexit_shutdown():
-    """Best-effort cleanup of the shared Playwright browser on process exit."""
-    try:
-        loop = asyncio.get_event_loop()
-        if loop.is_closed():
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-        loop.run_until_complete(shutdown())
-    except Exception:
-        pass  # Never raise in atexit
-
-
-atexit.register(_atexit_shutdown)
+    """Synchronous helper for FastAPI background tasks."""
+    return asyncio.run(scrape_panel_single_url(url))
 
 
 if __name__ == "__main__":
-    
-    url = input("URL: ").strip()
-    doc = asyncio.run(scrape_panel_single_url(url))
+    u = input("URL: ").strip()
+    doc = asyncio.run(scrape_panel_single_url(u))
     if doc:
         print("Title:", doc.get("title"))
         print("Chars:", len(doc.get("content") or ""))
