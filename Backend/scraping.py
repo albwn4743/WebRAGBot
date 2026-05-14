@@ -3,7 +3,7 @@ from urllib.parse import urlparse
 from playwright.async_api import async_playwright
 # import trafilatura
 
-MAX_PAGES = 30
+MAX_PAGES = 15
 # MAIN CRAWLER
 async def process_single_page(url, browser, domain):
     page = None
@@ -97,10 +97,14 @@ async def crawl_website(start_url):
     queue = [start_url]
     visited_urls = set()
     all_documents = []
-    MAX_CONCURRENT = 5
+    MAX_CONCURRENT = 2
 
     async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
+        browser = await p.chromium.launch(headless=True,args=[
+        "--no-sandbox",
+        "--disable-dev-shm-usage",
+        "--disable-gpu"
+    ])
         while queue and len(visited_urls) < MAX_PAGES:
             batch_urls = []
             
