@@ -3,15 +3,12 @@ import warnings
 warnings.filterwarnings("ignore")
 from langchain_community.document_loaders import PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from Dataset import get_embeddings
 import weaviate
 from weaviate.classes.init import Auth
 from weaviate.classes.config import Configure, Property, DataType
 from dotenv import load_dotenv
 load_dotenv()
-embeddings = HuggingFaceEmbeddings(
-    model_name="sentence-transformers/all-MiniLM-L6-v2"
-)
 splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, separators=["\n\n", "\n", " ", ""])
 
 def process_and_upload_documents(documents, domain):
@@ -83,6 +80,7 @@ def process_and_upload_documents(documents, domain):
             for c in chunk_documents
         ]
         print("Generating embeddings...")
+        embeddings = get_embeddings()
         vectors = embeddings.embed_documents(text_chunks)
         
         # Batch upload

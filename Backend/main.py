@@ -84,11 +84,10 @@ class PanelChatRequest(BaseModel):
 
 try:
     client = connect_weaviate()
-    embeddings = get_embeddings()
+    # embeddings will be fetched lazily
 except Exception as e:
-    print(f"Error initializing Weaviate/Embeddings: {e}")
+    print(f"Error initializing Weaviate: {e}")
     client = None
-    embeddings = None
 
 # Background Scrape Task
 def background_scrape(url: str, session_id: str):
@@ -267,9 +266,10 @@ async def chat_api(req: ChatRequest):
     user_msg = req.message
     history = sessions_db[session_id].get("history", [])
     
-    if client is None or embeddings is None:
+    if client is None:
         raise HTTPException(status_code=500, detail="Backend services not fully initialized")
     try:
+        embeddings = get_embeddings()
         # Extract domain from session URL
         session = sessions_db[session_id]
         session_url = session.get("url", "")
@@ -337,6 +337,10 @@ async def clear_session_history(session_id: str):
         sessions_db[session_id]["history"] = []
         save_sessions(sessions_db)
     return {"success": True}
+
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
