@@ -111,4 +111,15 @@ Backend: fastapi, uvicorn, weaviate client, groq, langchain, playwright, dotenv
 
 Frontend: react, vite, axios, markdown rendering libs
 
+## 🚀 Project Deployment
+
+### Live Project
+[WebRAG Live Demo](https://web-rag-deployment.vercel.app?_vercel_share=H5ab9YEC8GzIbYKJS7Z1lba1fkUVZm6m&utm_source=chatgpt.com)
+
+### Frontend
+Vercel
+
+### Backend
+Hugging Face Spaces
+
 If something breaks double check .env keys and that playwright browsers installed. Good luck
